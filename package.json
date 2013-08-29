@@ -1,0 +1,16 @@
+{
+  "name": "clusterstream",
+  "version": "0.0.1",
+  "description": "Piping streams across a cluster of Workers",
+  "keywords": [
+    "stream",
+    "cluster"
+  ],
+  "author": "Ziggy Jonsson (http://github.com/zjonsson/)",
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/ZJONSSON/clusterstream"
+  },
+  "main": "index.js",
+  "license": "MIT"
+}
