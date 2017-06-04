@@ -1,68 +1,111 @@
-var cluster = require("cluster"),
-    stream = require("stream"),
-    util = require("util");
+const os = require('os');
+const child_process = require('child_process');
+const duplexer2 = require('duplexer2');
+const Streamz = require('streamz');
+const split = require('binary-split');
+const path = require('path');
+const DELIMITER = '\n\t\t\t\n\t\n\n\t\t\t\n\t\n';
 
-function Fork(n,options) {
-  if (!(this instanceof Fork))
-    return new Fork(n,options);
+function Clusterstream(options, fn) {
+  const workers = new Set();
+  const available = new Set();
 
-  var self = this;
-  stream.PassThrough.call(this,options);
-  this.workers = [];
-  this.available = [];
+  let next;
 
-  this.on("end",function() {
-    this.workers.forEach(function(worker) {
-      worker.send(null);
-      worker.disconnect();
+  if (typeof options === 'function' || typeof options === 'string') {
+    fn = options;
+    options = {};
+  } else if (!isNaN(options)) {
+    options = { children: options};
+  }
+
+  if (!fn)
+    throw new Error('Invalid FN - needs to be a function or a module path');
+
+  options = options || {};
+  const highWaterMark = options.highWaterMark;
+
+  const outStream = Streamz(null,{keepAlive: true, highWaterMark});
+  const children = (options.children || os.cpus().length);
+  for (let w = 0; w < children; w++) {
+    const worker = child_process.fork(path.resolve(__dirname,'./worker.js'),{stdio:['pipe','pipe','pipe','ipc']});
+
+    // Send everything as stringified JSON + splitkey
+    worker.transmit = d => worker.stdin.write(JSON.stringify(d)+DELIMITER);
+
+    worker.stderr.pipe(Streamz(d => console.error(d.toString())));
+
+    worker.stdin.on('drain', () => {
+      available.add(worker);
+      if (next) {
+        Clusterstream.emit('resumed');
+        worker.transmit({action:'data',payload:next.payload});
+        setImmediate(next.cb);
+        next = undefined;
+      }
     });
-  });
 
-  while (n--) this.newWorker(n);
-}
-
-util.inherits(Fork,stream.PassThrough);
-
-Fork.prototype.next = function() {
-  var chunk;
-  if (this.available.length && (chunk = this.read()))
-    this.available.shift().send(chunk);
-};
-
-Fork.prototype.newWorker = function() {
-  var self = this;
-   cluster.fork()
-      .on('online',function() {
-        self.workers.push(this);
-        self.available.push(this);
-        self.next();
+    worker.stdout
+      
+      .pipe(split(DELIMITER))
+      .pipe(Streamz(function(d) {
+        d = JSON.parse(d);
+        if (d.error === true)
+          this.emit('error',d);
+        else
+          return d;
+      },{highWaterMark}))
+      .on('end', () => {
+        available.delete(worker);
+        workers.delete(worker);
+        
+        if (!workers.size)
+          outStream.end();
       })
-      .on('message',function(d) {
-        self.available.push(this);
-        self.next();
-      });
-};
+      .pipe(outStream);
 
-function Worker(options) {
-   if (!(this instanceof Worker))
-    return new Worker(options);
+    worker.transmit({
+      argv: options.argv,
+      global: options.global,
+      require: options.require,
+      fn: typeof fn === 'function' ? fn.toString() : undefined,
+      module: typeof fn === 'string' ? path.resolve(fn) : undefined,
+      workerId: w
+    });
 
-  var self = this;
-  stream.Readable.call(this,options);
-  process.on('message',function(msg) {
-    self.push(msg);
-  });
+    workers.add(worker);
+    available.add(worker);
+  }
+
+  const inStream = Streamz((payload,cb) => {
+    // If all workers are busy we put a placeholder for next available worker
+    if (!available.size) {
+      Clusterstream.emit('paused');
+      next = {payload, cb};
+    }
+    // Otherwise we send packet to the oldest available worker
+    // ([...available] returns fifo array from left to right)
+    else {
+      const pick = [...available][0];
+      available.delete(pick);
+      available.add(pick);
+      if (!pick.transmit(payload))
+        available.delete(pick);
+      setImmediate(cb);
+    }
+  },Object.assign({
+    // On flush we close all workers
+    flush: cb => {
+      [...workers].forEach(worker => worker.stdin.end());
+      cb();
+    }
+  },options));
+
+  const Clusterstream = duplexer2(Object.assign(options,{objectMode: true}),inStream,outStream);
+  Clusterstream.workers = workers;
+  Clusterstream.available = available;
+  Clusterstream.promise = Streamz.prototype.promise;
+  return Clusterstream;
 }
 
-util.inherits(Worker,stream.Readable);
-
-Worker.prototype._read = function() {
-  process.send('done');
-};
-
-module.exports = {
-  Fork : Fork,
-  Worker : Worker,
-  isMaster : cluster.isMaster,
-  isWorker : cluster.isWorker
-};
+module.exports = Clusterstream;
