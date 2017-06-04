@@ -1,6 +1,6 @@
 {
   "name": "clusterstream",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Piping streams across a cluster of Workers",
   "keywords": [
     "stream",
@@ -12,5 +12,16 @@
     "url": "http://github.com/ZJONSSON/clusterstream"
   },
   "main": "index.js",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "binary-split": "~1.0.3",
+    "duplexer2": "~0.1.4",
+    "streamz": "~1.8.2"
+  },
+  "devDependencies": {
+    "tap": "~10.3.3"
+  },
+  "scripts": {
+    "test": "tap test -Rspec --coverage-report=html --no-browser"
+  }
 }
