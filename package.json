@@ -1,6 +1,6 @@
 {
   "name": "clusterstream",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Piping streams across a cluster of Workers",
   "keywords": [
     "stream",

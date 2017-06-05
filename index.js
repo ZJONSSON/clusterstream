@@ -50,9 +50,14 @@ function Clusterstream(options, fn) {
       .pipe(split(DELIMITER))
       .pipe(Streamz(function(d) {
         d = JSON.parse(d);
-        if (d.error === true)
-          this.emit('error',d);
-        else
+        if (d._ClusterStreamMessage) {
+          if (d.error === true)
+            this.emit('error',d);
+          else if (d.end === true) {
+            worker.disconnect();
+            this.end();
+          }
+        } else
           return d;
       },{highWaterMark}))
       .on('end', () => {
