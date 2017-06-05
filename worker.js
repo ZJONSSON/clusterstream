@@ -7,7 +7,16 @@ const highWaterMark = 1;
 // within `new Function(..)`
 global.require = require;
 global.console.log = console.error;
-const out = Streamz(null,{highWaterMark});
+const out = Streamz(null,{
+  highWaterMark,
+  flush: function(cb) {
+    this.push({
+      _ClusterStreamMessage: true,
+      end: true
+    });
+    cb();
+  }
+});
 
 let fn;
 
@@ -47,6 +56,7 @@ const worker = process.stdin
 out
   .on('error',e => {
     e = {
+      _ClusterStreamMessage: true,
       message: e.message || e,
       stack: e.stack,
       error: true
