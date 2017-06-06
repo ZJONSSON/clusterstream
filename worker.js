@@ -10,10 +10,7 @@ global.console.log = console.error;
 const out = Streamz(null,{
   highWaterMark,
   flush: function(cb) {
-    this.push({
-      _ClusterStreamMessage: true,
-      end: true
-    });
+    this.push({ _ClusterStreamMessage: 'end' });
     cb();
   }
 });
@@ -56,7 +53,7 @@ const worker = process.stdin
 out
   .on('error',e => {
     e = {
-      _ClusterStreamMessage: true,
+      _ClusterStreamMessage: 'error',
       message: e.message || e,
       stack: e.stack,
       error: true
@@ -65,3 +62,8 @@ out
   })
   .pipe(Streamz(d => JSON.stringify(d)+DELIMITER),{highWaterMark})
   .pipe(process.stdout);
+
+worker.writeParent = d => out.push({
+  ClusterStreamMessage: 'write',
+  data: d
+});

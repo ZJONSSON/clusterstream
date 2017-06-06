@@ -46,14 +46,13 @@ function Clusterstream(options, fn) {
     });
 
     worker.stdout
-      
       .pipe(split(DELIMITER))
       .pipe(Streamz(function(d) {
         d = JSON.parse(d);
         if (d._ClusterStreamMessage) {
-          if (d.error === true)
+          if (d._ClusterStreamMessage === 'error')
             this.emit('error',d);
-          else if (d.end === true) {
+          else if (d._ClusterStreamMessage === 'end') {
             worker.disconnect();
             this.end();
           }
