@@ -6,7 +6,7 @@ const split = require('binary-split');
 const path = require('path');
 const DELIMITER = '\n\t\t\t\n\t\n\n\t\t\t\n\t\n';
 
-function Clusterstream(options, fn) {
+function Clusterstream(options, fn, isMap) {
   const workers = new Set();
   const available = new Set();
 
@@ -27,8 +27,10 @@ function Clusterstream(options, fn) {
 
   const outStream = Streamz(null,{keepAlive: true, highWaterMark});
   const children = (options.children || os.cpus().length);
+  const parentDir = path.resolve(process.cwd());
+
   for (let w = 0; w < children; w++) {
-    const worker = child_process.fork(path.resolve(__dirname,'./worker.js'),{stdio:['pipe','pipe','pipe','ipc']});
+    const worker = child_process.fork(path.resolve(__dirname,'./worker.js'),{stdio:['pipe','pipe','pipe','ipc'],cwd: parentDir});
 
     // Send everything as stringified JSON + splitkey
     worker.transmit = d => worker.stdin.write(JSON.stringify(d)+DELIMITER);
@@ -46,16 +48,18 @@ function Clusterstream(options, fn) {
     });
 
     worker.stdout
-      
       .pipe(split(DELIMITER))
       .pipe(Streamz(function(d) {
         d = JSON.parse(d);
         if (d._ClusterStreamMessage) {
-          if (d.error === true)
+          if (d._ClusterStreamMessage === 'error')
             this.emit('error',d);
-          else if (d.end === true) {
+          else if (d._ClusterStreamMessage === 'end') {
             worker.disconnect();
             this.end();
+          }
+          else if (d._ClusterStreamMessage === 'event') {
+            Clusterstream.emit('event',d.data);
           }
         } else
           return d;
@@ -63,13 +67,14 @@ function Clusterstream(options, fn) {
       .on('end', () => {
         available.delete(worker);
         workers.delete(worker);
-        
+
         if (!workers.size)
           outStream.end();
       })
       .pipe(outStream);
 
     worker.transmit({
+      isMap: isMap,
       argv: options.argv,
       global: options.global,
       require: options.require,
@@ -112,5 +117,7 @@ function Clusterstream(options, fn) {
   Clusterstream.promise = Streamz.prototype.promise;
   return Clusterstream;
 }
+
+Clusterstream.map = (options,fn) => Clusterstream(options,fn,true);
 
 module.exports = Clusterstream;

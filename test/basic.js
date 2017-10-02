@@ -69,6 +69,21 @@ t.test('basic clusterstream', {autoend:true, jobs:10},  t => {
     t.end();
   });
 
+  t.test('clusterstream.map initialized with a module path', async t => {
+    let results = [],event;
+    await feeder().pipe(Clusterstream.map(path.resolve(__dirname,'./map-fn.js')))
+    .on('event',e => event = e)
+    .pipe(Streamz(d => {
+      results.push(d.number);
+    }))
+    .promise();
+
+    results = results.sort( (a,b) => a-b);
+    t.same(results,values,'values are correct');
+    t.same(event,'test','event was emitted')
+    t.end();
+  });
+
   t.test('missing fn or module', async t => {
     const e = await Promise.try(() => feeder().pipe(Clusterstream()))
       .then( () => { throw 'Should Error';}, Object);

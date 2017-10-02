@@ -11,7 +11,7 @@ Options are optional (can be omitted completely):
 * argv - a standard variable of arguments that will be made available to the function
 * require - an array of strings representing modules that should be required (no paths allowed)
 
-By default, Clusterstream creates as many workers as there are cpus.  If options is a number (not an object), then that number will determine the number of workers created. 
+By default, Clusterstream creates as many workers as there are cpus.  If options is a number (not an object), then that number will determine the number of workers created.
 
 
 Here is a quick and dirty example where each worker waits 500ms before returning each object:
@@ -82,3 +82,9 @@ etl.toStream([...Array(100)].map( (d,i) => ({data:i})))
 ))
 .pipe(etl.map(d => console.log('received',d)));
 ```
+
+### `Clusterstream.map([options],fn)`
+
+`Clusterstream.map` is a simple wrapper where you supply a transform function
+that receives each packet as an argument and returns the transformed values
+(instead of stream input/output)

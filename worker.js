@@ -10,10 +10,7 @@ global.console.log = console.error;
 const out = Streamz(null,{
   highWaterMark,
   flush: function(cb) {
-    this.push({
-      _ClusterStreamMessage: true,
-      end: true
-    });
+    this.push({ _ClusterStreamMessage: 'end' });
     cb();
   }
 });
@@ -39,7 +36,13 @@ function initialize(d) {
       fn = true;
       throw new Error('No `fn` or `module` defined');
     }
-    fn(worker).pipe(out);
+    if (d.isMap) {
+      let map = Streamz(fn,d.argv);
+      map.emitEvent = e => worker.emitEvent(e);
+      worker.pipe(map).pipe(out);
+    } else {
+      fn(worker).pipe(out);
+    }
   } catch(e) {
     out.emit('error',e);
   }
@@ -56,7 +59,7 @@ const worker = process.stdin
 out
   .on('error',e => {
     e = {
-      _ClusterStreamMessage: true,
+      _ClusterStreamMessage: 'error',
       message: e.message || e,
       stack: e.stack,
       error: true
@@ -65,3 +68,8 @@ out
   })
   .pipe(Streamz(d => JSON.stringify(d)+DELIMITER),{highWaterMark})
   .pipe(process.stdout);
+
+worker.emitEvent = d => out.push({
+  _ClusterStreamMessage: 'event',
+  data: d
+});
