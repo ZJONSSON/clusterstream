@@ -37,7 +37,7 @@ function initialize(d) {
       throw new Error('No `fn` or `module` defined');
     }
     if (d.isMap) {
-      let map = Streamz(fn,d.argv);
+      let map = Streamz(fn,{concurrency:d.concurrency || 1});
       map.emitEvent = e => worker.emitEvent(e);
       worker.pipe(map).pipe(out);
     } else {

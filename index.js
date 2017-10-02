@@ -76,6 +76,7 @@ function Clusterstream(options, fn, isMap) {
     worker.transmit({
       isMap: isMap,
       argv: options.argv,
+      concurrency: options.concurrency,
       global: options.global,
       require: options.require,
       fn: typeof fn === 'function' ? fn.toString() : undefined,
