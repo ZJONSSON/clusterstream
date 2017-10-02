@@ -58,6 +58,9 @@ function Clusterstream(options, fn, isMap) {
             worker.disconnect();
             this.end();
           }
+          else if (d._ClusterStreamMessage === 'event') {
+            Clusterstream.emit('event',d.data);
+          }
         } else
           return d;
       },{highWaterMark}))

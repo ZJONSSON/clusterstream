@@ -36,10 +36,13 @@ function initialize(d) {
       fn = true;
       throw new Error('No `fn` or `module` defined');
     }
-    if (d.isMap)
-      worker.pipe(Streamz(fn,d.argv)).pipe(out);
-    else
+    if (d.isMap) {
+      let map = Streamz(fn,d.argv);
+      map.emitEvent = e => worker.emitEvent(e);
+      worker.pipe(map).pipe(out);
+    } else {
       fn(worker).pipe(out);
+    }
   } catch(e) {
     out.emit('error',e);
   }
@@ -66,7 +69,7 @@ out
   .pipe(Streamz(d => JSON.stringify(d)+DELIMITER),{highWaterMark})
   .pipe(process.stdout);
 
-worker.writeParent = d => out.push({
-  ClusterStreamMessage: 'write',
+worker.emitEvent = d => out.push({
+  _ClusterStreamMessage: 'event',
   data: d
 });
