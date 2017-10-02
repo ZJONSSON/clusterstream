@@ -36,7 +36,10 @@ function initialize(d) {
       fn = true;
       throw new Error('No `fn` or `module` defined');
     }
-    fn(worker).pipe(out);
+    if (d.isMap)
+      worker.pipe(Streamz(fn,d.argv)).pipe(out);
+    else
+      fn(worker).pipe(out);
   } catch(e) {
     out.emit('error',e);
   }
